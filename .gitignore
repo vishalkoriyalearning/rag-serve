@@ -1,3 +1,6 @@
 RAG-Serve_Project_Description.md
 __pycache__/
+.pytest_cache/
+.venv/
 *.pyc
+notes.md
