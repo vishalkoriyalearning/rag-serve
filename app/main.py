@@ -1,8 +1,19 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from app.utils.pdf_text import extract_pdf_text
+
 from app.core.chunker import chunk_text
 from app.core.embeddings import embed_chunks
 from app.core.storage import save_index
+
+from app.core.vectorstore import (
+    build_faiss_index,
+    save_faiss_index,
+    save_chunks
+)
+
+from pydantic import BaseModel
+from app.core.search import search
+
 
 app = FastAPI(title="RAG-Serve")
 
@@ -37,11 +48,32 @@ async def index_doc(file: UploadFile = File(...)):
     # 2. Embed
     embeddings = embed_chunks(chunks)
 
-    # 3. Save
-    save_index(chunks, embeddings)
+    # # 3. Save in JSON
+    # save_index(chunks, embeddings)
+
+    # return {
+    #     "chunks": len(chunks),
+    #     "embedding_dim": len(embeddings[0]),
+    #     "status": "indexed"
+    # }
+
+    # 3. Build FAISS index
+    index = build_faiss_index(embeddings)
+
+    # 4. Save index + chunks metadata
+    save_faiss_index(index)
+    save_chunks(chunks)
 
     return {
-        "chunks": len(chunks),
-        "embedding_dim": len(embeddings[0]),
-        "status": "indexed"
+        "chunks_indexed": len(chunks),
+        "embedding_dim": embeddings.shape[1],
+        "faiss_saved": True
     }
+
+class QueryRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+@app.post("/query")
+def query_text(req: QueryRequest):
+    return search(req.query, req.top_k)

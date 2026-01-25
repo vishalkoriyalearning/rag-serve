@@ -9,6 +9,7 @@ def get_embedding_model(name: str = "all-MiniLM-L6-v2"): # default model, can be
     return _model
 
 def embed_chunks(chunks: list[str]):
+    """Embed a list of text chunks into vectors."""
     model = get_embedding_model()
     embeddings = model.encode(
         chunks,
