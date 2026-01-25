@@ -12,7 +12,7 @@ from app.core.vectorstore import (
 )
 
 from pydantic import BaseModel
-from app.core.search import search
+from app.core.search import search, generate_answer
 
 
 app = FastAPI(title="RAG-Serve")
@@ -77,3 +77,11 @@ class QueryRequest(BaseModel):
 @app.post("/query")
 def query_text(req: QueryRequest):
     return search(req.query, req.top_k)
+
+class GenRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+@app.post("/generate")
+def generate_api(req: GenRequest):
+    return generate_answer(req.query, req.top_k)
