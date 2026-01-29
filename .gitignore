@@ -4,3 +4,15 @@ __pycache__/
 .venv/
 *.pyc
 notes.md
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+cache/
+storage/faiss.index
+storage/*.json
+.git
+.gitignore
