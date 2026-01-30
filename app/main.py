@@ -13,56 +13,78 @@ from app.core.vectorstore import (
 from pydantic import BaseModel
 from app.core.search import search, generate_answer
 
+from prometheus_client import Counter, Histogram, generate_latest
+from fastapi.responses import PlainTextResponse
+from time import time
+
+from utils.logging import get_logger
+
+logger = get_logger()
+
 
 app = FastAPI(title="RAG-Serve")
+logger.info("Starting RAG-Serve FastAPI application.")
 
 @app.get("/health")
 def health():
+    logger.debug("Health check endpoint called.")
     return {"status": "ok"}
+
+
+requests_total = Counter("requests_total", "Total API requests", ["endpoint"])
+latency_hist = Histogram("request_latency_seconds", "API latency", ["endpoint"])
+
+@app.get("/metrics")
+def metrics():
+    return PlainTextResponse(generate_latest(), media_type="text/plain")
 
 @app.post("/ingest")
 async def ingest(file: UploadFile = File(...)):
+    logger.info(f"Ingest endpoint called with file: {file.filename}")
     try:
         content = await file.read()
+        logger.debug(f"Read {len(content)} bytes from file: {file.filename}")
         if file.filename.endswith(".pdf"):
+            logger.debug("Extracting text from PDF file.")
             text = extract_pdf_text(content)
         else:
+            logger.debug("Decoding text from non-PDF file.")
             text = content.decode("utf-8", errors="ignore")
+        logger.info(f"File ingested successfully. Length: {len(text)} characters.")
         return {"status": "ingested", "length": len(text)}
     except Exception as e:
+        logger.error(f"Error during ingestion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/index-doc")
 async def index_doc(file: UploadFile = File(...)):
+    logger.info(f"Index-doc endpoint called with file: {file.filename}")
     content = await file.read()
+    logger.debug(f"Read {len(content)} bytes from file: {file.filename}")
 
     if file.filename.endswith(".pdf"):
+        logger.debug("Extracting text from PDF file.")
         text = extract_pdf_text(content)
     else:
+        logger.debug("Decoding text from non-PDF file.")
         text = content.decode("utf-8", errors="ignore")
 
-    # 1. Chunk
+    logger.info("Chunking text.")
     chunks = chunk_text(text)
+    logger.info(f"Text chunked into {len(chunks)} chunks.")
 
-    # 2. Embed
+    logger.info("Embedding chunks.")
     embeddings = embed_chunks(chunks)
+    logger.info(f"Chunks embedded. Embedding dimension: {embeddings.shape[1] if hasattr(embeddings, 'shape') else 'unknown'}.")
 
-    # # 3. Save in JSON
-    # save_index(chunks, embeddings)
-
-    # return {
-    #     "chunks": len(chunks),
-    #     "embedding_dim": len(embeddings[0]),
-    #     "status": "indexed"
-    # }
-
-    # 3. Build FAISS index
+    logger.info("Building FAISS index.")
     index = build_faiss_index(embeddings)
 
-    # 4. Save index + chunks metadata
+    logger.info("Saving FAISS index and chunks metadata.")
     save_faiss_index(index)
     save_chunks(chunks)
 
+    logger.info("Indexing complete.")
     return {
         "chunks_indexed": len(chunks),
         "embedding_dim": embeddings.shape[1],
@@ -75,7 +97,10 @@ class QueryRequest(BaseModel):
 
 @app.post("/query")
 def query_text(req: QueryRequest):
-    return search(req.query, req.top_k)
+    logger.info(f"Query endpoint called. Query: {req.query}, top_k: {req.top_k}")
+    result = search(req.query, req.top_k)
+    logger.debug(f"Query result: {result}")
+    return result
 
 class GenRequest(BaseModel):
     query: str
@@ -83,4 +108,10 @@ class GenRequest(BaseModel):
 
 @app.post("/generate")
 def generate_api(req: GenRequest):
-    return generate_answer(req.query, req.top_k)
+    start = time()
+    requests_total.labels(endpoint="/generate").inc()
+    logger.info(f"Generate endpoint called. Query: {req.query}, top_k: {req.top_k}")
+    result = generate_answer(req.query, req.top_k)
+    logger.debug(f"Generated answer: {result}")
+    latency_hist.labels(endpoint="/generate").observe(time() - start)
+    return result
