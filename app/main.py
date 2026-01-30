@@ -3,7 +3,6 @@ from app.utils.pdf_text import extract_pdf_text
 
 from app.core.chunker import chunk_text
 from app.core.embeddings import embed_chunks
-from app.core.storage import save_index
 
 from app.core.vectorstore import (
     build_faiss_index,

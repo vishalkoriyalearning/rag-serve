@@ -2,7 +2,6 @@ import openai
 from configs.llm import OPENAI_API_KEY, OPENAI_MODEL
 
 import requests
-import json
 import os
 
 
@@ -19,6 +18,7 @@ def call_openai(prompt: str):
         return resp.choices[0].message.content
     except Exception as e:
         # Log error and fallback
+        print(e)
         return None
 
 
