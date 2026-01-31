@@ -1,4 +1,16 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="RAG-Serve")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or restrict later
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 from app.utils.pdf_text import extract_pdf_text
 
 from app.core.chunker import chunk_text
@@ -17,12 +29,13 @@ from prometheus_client import Counter, Histogram, generate_latest
 from fastapi.responses import PlainTextResponse
 from time import time
 
-from utils.logging import get_logger
+from app.utils.logging import get_logger
+
 
 logger = get_logger()
 
 
-app = FastAPI(title="RAG-Serve")
+
 logger.info("Starting RAG-Serve FastAPI application.")
 
 @app.get("/health")
@@ -107,11 +120,11 @@ class GenRequest(BaseModel):
     top_k: int = 5
 
 @app.post("/generate")
-def generate_api(req: GenRequest):
+def generate_api(req: GenRequest, x_api_key: str = Header(None)):
     start = time()
     requests_total.labels(endpoint="/generate").inc()
     logger.info(f"Generate endpoint called. Query: {req.query}, top_k: {req.top_k}")
-    result = generate_answer(req.query, req.top_k)
+    result = generate_answer(req.query, req.top_k, api_key=x_api_key)
     logger.debug(f"Generated answer: {result}")
     latency_hist.labels(endpoint="/generate").observe(time() - start)
     return result
