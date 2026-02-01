@@ -3,13 +3,13 @@ from app.core.embeddings import embed_chunks
 from app.core.vectorstore import load_faiss_index, load_chunks
 from app.core.generator import call_openai, call_ollama
 from app.utils.logging import get_logger
-
-logger = get_logger()
-
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = get_logger()
+
 
 PLATFORM = os.getenv("PLATFORM", "LOCAL")
 
@@ -56,6 +56,7 @@ def generate_answer(query: str, top_k: int = 5, api_key: str = None):
     if PLATFORM == "LOCAL":
         # Local: Try OpenAI first (with user's API key), fallback to Ollama
         try:
+            logger.info("Trying with OpenAI")
             if api_key:
                 out = call_openai(prompt, api_key=api_key)
             else:
@@ -69,6 +70,7 @@ def generate_answer(query: str, top_k: int = 5, api_key: str = None):
         
         # Fallback to Ollama in LOCAL mode
         try:
+            logger.info("Trying with Ollama")
             fallback = call_ollama(prompt)
             return {"response": fallback, "source": "ollama"}
         except Exception as e:

@@ -1,7 +1,23 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from app.utils.pdf_text import extract_pdf_text
+from app.core.chunker import chunk_text
+from app.core.embeddings import embed_chunks
+from app.core.vectorstore import (
+    build_faiss_index,
+    save_faiss_index,
+    save_chunks
+)
+from pydantic import BaseModel
+from app.core.search import search, generate_answer
+from prometheus_client import Counter, Histogram, generate_latest
+from fastapi.responses import PlainTextResponse
+from time import time
+from app.utils.logging import get_logger
+
 
 app = FastAPI(title="RAG-Serve")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # or restrict later
@@ -10,31 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-from app.utils.pdf_text import extract_pdf_text
-
-from app.core.chunker import chunk_text
-from app.core.embeddings import embed_chunks
-
-from app.core.vectorstore import (
-    build_faiss_index,
-    save_faiss_index,
-    save_chunks
-)
-
-from pydantic import BaseModel
-from app.core.search import search, generate_answer
-
-from prometheus_client import Counter, Histogram, generate_latest
-from fastapi.responses import PlainTextResponse
-from time import time
-
-from app.utils.logging import get_logger
-
-
 logger = get_logger()
-
-
 
 logger.info("Starting RAG-Serve FastAPI application.")
 
