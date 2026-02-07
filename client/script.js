@@ -1,4 +1,5 @@
 // BACKEND URL
+// const BASE_URL = "http://127.0.0.1:8000";
 const BASE_URL = "https://rag-serve.onrender.com";
 
 // UI Elements
@@ -115,6 +116,31 @@ function displayMetrics(results) {
 
 // ---------------- File Upload ----------------
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pollIndexStatus(jobId, { intervalMs = 2000, timeoutMs = 10 * 60 * 1000 } = {}) {
+    const start = Date.now();
+    while (true) {
+        const res = await fetch(`${BASE_URL}/index-status/${encodeURIComponent(jobId)}`);
+        if (!res.ok) {
+            throw new Error(`Index status check failed (${res.status})`);
+        }
+
+        const data = await res.json();
+        if (data.status === "completed") return data;
+        if (data.status === "failed") {
+            throw new Error(data.error || "Indexing failed");
+        }
+
+        if (Date.now() - start > timeoutMs) {
+            throw new Error("Indexing timed out while waiting for completion");
+        }
+        await sleep(intervalMs);
+    }
+}
+
 uploadBtn.addEventListener("click", async () => {
     const file = fileInput.files[0];
     if (!file) {
@@ -137,7 +163,17 @@ uploadBtn.addEventListener("click", async () => {
 
         const data = await res.json();
         
-        if (data.chunks_indexed) {
+        // New behavior: /index-doc returns 202 + job_id and indexing happens in the background.
+        if (data.job_id) {
+            uploadStatus.textContent = "Indexing started... (This may take a bit on first request due to cold start)";
+            uploadStatus.style.color = "black";
+
+            const final = await pollIndexStatus(data.job_id);
+            uploadStatus.textContent = `✓ Indexed! ${final.chunks_indexed} chunks, dimension: ${final.embedding_dim}`;
+            uploadStatus.style.color = "green";
+            metricsBox.innerHTML = "<p class='text-gray-500'>Ready to ask questions!</p>";
+        } else if (data.chunks_indexed) {
+            // Backward-compatible: if the API still responds synchronously.
             uploadStatus.textContent = `✓ Indexed! ${data.chunks_indexed} chunks, dimension: ${data.embedding_dim}`;
             uploadStatus.style.color = "green";
             metricsBox.innerHTML = "<p class='text-gray-500'>Ready to ask questions!</p>";
@@ -147,7 +183,7 @@ uploadBtn.addEventListener("click", async () => {
         }
 
     } catch (err) {
-        uploadStatus.textContent = "Upload failed: " + err;
+        uploadStatus.textContent = "Upload failed: " + (err?.message || err);
         uploadStatus.style.color = "red";
     }
 });

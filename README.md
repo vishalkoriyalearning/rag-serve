@@ -28,6 +28,7 @@ This repository is a showcase of:
 * Chunking with overlap for retrieval quality
 * Embeddings using `sentence-transformers`
 * FAISS vector store for fast similarity search
+* Async/background indexing jobs with status polling (`/index-status/{job_id}`) to avoid request timeouts in production hosts
 * Semantic search API (`/query`)
 * Answer generation API (`/generate`) with provider routing
 * Minimal UI for document upload and chat-style Q&A
@@ -39,7 +40,7 @@ This repository is a showcase of:
 
 1. Ingest a document and extract text
 2. Chunk and embed text
-3. Build and persist FAISS index and chunks
+3. Build and persist FAISS index and chunks (runs as a background job; poll for completion)
 4. For a query, retrieve top-k relevant chunks
 5. Build a context-aware prompt
 6. Generate an answer with the selected LLM provider
@@ -58,7 +59,9 @@ sequenceDiagram
     participant LLM as LLM Provider
 
     User->>UI: Upload document / Ask question
-    UI->>API: POST /ingest or /generate?llm_provider=...
+    UI->>API: POST /index-doc (returns job_id)
+    UI->>API: GET /index-status/{job_id} (poll)
+    UI->>API: POST /generate?llm_provider=...
     API->>Emb: Embed chunks or query
     API->>VS: Store or search vectors
     VS-->>API: Top-k chunks
@@ -152,7 +155,8 @@ The UI sends the provider as `llm_provider` with values:
 * `GET /health` - health check
 * `GET /metrics` - Prometheus metrics
 * `POST /ingest` - upload a document
-* `POST /index-doc` - build the FAISS index
+* `POST /index-doc` - start building the FAISS index (async; returns `202` + `job_id`)
+* `GET /index-status/{job_id}` - check indexing job status
 * `POST /query` - semantic search
 * `POST /generate` - RAG + LLM answer
 
@@ -163,6 +167,19 @@ curl -X POST "http://localhost:8000/generate?llm_provider=openai" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: <your_key>" \
   -d "{\"query\":\"What is this document about?\",\"top_k\":3}"
+```
+
+Indexing example (async):
+
+```bash
+# Start indexing (returns 202 with job_id)
+curl -X POST "http://localhost:8000/index-doc" \
+  -H "accept: application/json" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@your.pdf;type=application/pdf"
+
+# Poll job status
+curl "http://localhost:8000/index-status/<job_id>"
 ```
 
 ---
@@ -176,6 +193,8 @@ The UI is a static client in `client/`:
 * Upload documents and ask questions
 
 The UI points to the deployed backend by default and can be adjusted in `client/script.js`.
+
+Note: Render free tier instances can spin down on inactivity; the first request after inactivity may take ~50 seconds to respond.
 
 ---
 
@@ -205,4 +224,3 @@ GitHub Actions runs:
 * API auth and rate limiting
 * Usage analytics dashboard
 * Experiment tracking
-
