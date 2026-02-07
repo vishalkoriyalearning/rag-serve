@@ -1,17 +1,14 @@
 import numpy as np
 from app.core.embeddings import embed_chunks
 from app.core.vectorstore import load_faiss_index, load_chunks
-from app.core.generator import call_openai, call_ollama
+from app.core.generator import call_openai, call_gemini, call_ollama
 from app.utils.logging import get_logger
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = get_logger()
 
-
-PLATFORM = os.getenv("PLATFORM", "LOCAL")
 
 
 def search(query: str, top_k: int = 5):
@@ -39,7 +36,7 @@ def search(query: str, top_k: int = 5):
 
     return {"results": results}
 
-def generate_answer(query: str, top_k: int = 5, api_key: str = None):
+def generate_answer(query: str, top_k: int = 5, llm_provider: str = None, api_key: str = None):
     # 1) Retrieve
     emb = embed_chunks([query])
     index = load_faiss_index()
@@ -52,39 +49,21 @@ def generate_answer(query: str, top_k: int = 5, api_key: str = None):
 
     context = "\n∎\n".join(chunks[i] for i in indices[0])
     prompt = f"Context:\n{context}\n\nQuestion:\n{query}"
-
-    if PLATFORM == "LOCAL":
-        # Local: Try OpenAI first (with user's API key), fallback to Ollama
-        try:
-            logger.info("Trying with OpenAI")
-            if api_key:
-                out = call_openai(prompt, api_key=api_key)
-            else:
-                # Use API key from .env if available
-                out = call_openai(prompt)
-            
-            if out:
-                return {"response": out, "source": "openai"}
-        except Exception as e:
-            logger.warning(f"OpenAI call failed: {e}. Falling back to Ollama.")
-        
-        # Fallback to Ollama in LOCAL mode
-        try:
-            logger.info("Trying with Ollama")
-            fallback = call_ollama(prompt)
-            return {"response": fallback, "source": "ollama"}
-        except Exception as e:
-            logger.error(f"Both OpenAI and Ollama failed: {e}")
-            return {"error": f"Generation failed: {str(e)}"}
     
-    else:
-        # Cloud: Use OpenAI only (no fallback)
-        try:
-            if api_key:
-                out = call_openai(prompt, api_key=api_key)
-            else:
-                out = call_openai(prompt)
-            return {"response": out, "source": "openai"}
-        except Exception as e:
-            logger.error(f"OpenAI call failed in CLOUD mode: {e}")
-            return {"error": f"Generation failed: {str(e)}"}
+    # 2) Generate answer using specified LLM provider
+    try:
+        logger.info(f"Generating answer using {llm_provider} with provided API key: {'Yes' if api_key else 'No'}")
+        if llm_provider == "openai":
+            response_text = call_openai(prompt, api_key=api_key)
+        elif llm_provider == "gemini":
+            response_text = call_gemini(prompt, api_key=api_key)
+        else:
+            return {"error": "Unsupported llm_provider. Use openai or gemini."}
+
+        if not response_text:
+            return {"error": "No response from LLM provider."}
+
+        return {"response": response_text}
+    except Exception as e:
+        logger.error(f"Error during generation: {e}")
+        return {"error": f"Generation failed: {str(e)}"}

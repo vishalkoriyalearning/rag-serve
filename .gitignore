@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 notes.md
 .ruff_cache/
+.env
 
 __pycache__/
 *.pyc

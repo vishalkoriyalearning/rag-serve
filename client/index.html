@@ -17,18 +17,30 @@
 
     <!-- API KEY SETUP -->
     <div class="bg-white p-4 rounded shadow mb-6 border-l-4 border-purple-600">
-        <h2 class="text-lg font-semibold mb-3">Setup: OpenAI API Key</h2>
-        <div class="flex gap-2">
-            <input 
-                id="api-key-input" 
-                type="password" 
-                placeholder="Enter your OpenAI API key (sk-...)"
-                class="flex-1 border border-gray-300 rounded px-3 py-2"
-            />
-            <button 
-                id="api-key-test-btn"
-                class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-            >Test & Save</button>
+        <h2 class="text-lg font-semibold mb-3">Setup: LLM Provider & API Key</h2>
+        <div class="space-y-3">
+            <div class="flex gap-2">
+                <label class="w-32 flex items-center font-medium text-sm">Provider:</label>
+                <select 
+                    id="llm-provider" 
+                    class="flex-1 border border-gray-300 rounded px-3 py-2"
+                >
+                    <option value="openai">OpenAI</option>
+                    <option value="gemini">Google Gemini</option>
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <input 
+                    id="api-key-input" 
+                    type="password" 
+                    placeholder="Enter your API key"
+                    class="flex-1 border border-gray-300 rounded px-3 py-2"
+                />
+                <button 
+                    id="api-key-test-btn"
+                    class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 whitespace-nowrap"
+                >Test & Save</button>
+            </div>
         </div>
         <p id="api-key-status" class="text-sm mt-2"></p>
     </div>
@@ -83,4 +95,8 @@
 
 <script src="script.js"></script>
 </body>
-</html>
+
+<footer class="max-w-5xl mx-auto mt-10 p-4 text-center text-sm text-gray-600 border-t border-gray-300">
+    <p>Personal project by <a href="https://github.com/vishalkoriyalearning" class="text-purple-600 hover:underline">vishalkoriyalearning</a></p>
+    <p class="mt-1 text-xs text-gray-500">Note: Document indexing and retrieval work without an API key. API key is only required for answer generation.</p>
+</footer>

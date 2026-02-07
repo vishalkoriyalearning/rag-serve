@@ -112,11 +112,11 @@ class GenRequest(BaseModel):
     top_k: int = 5
 
 @app.post("/generate")
-def generate_api(req: GenRequest, x_api_key: str = Header(None)):
+def generate_api(req: GenRequest, llm_provider: str, x_api_key: str = Header(None)):
     start = time()
     requests_total.labels(endpoint="/generate").inc()
     logger.info(f"Generate endpoint called. Query: {req.query}, top_k: {req.top_k}")
-    result = generate_answer(req.query, req.top_k, api_key=x_api_key)
+    result = generate_answer(req.query, req.top_k, llm_provider, api_key=x_api_key)
     logger.debug(f"Generated answer: {result}")
     latency_hist.labels(endpoint="/generate").observe(time() - start)
     return result

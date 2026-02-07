@@ -13,6 +13,7 @@ const uploadStatus = document.getElementById("upload-status");
 const apiKeyInput = document.getElementById("api-key-input");
 const apiKeyTestBtn = document.getElementById("api-key-test-btn");
 const apiKeyStatus = document.getElementById("api-key-status");
+const llmProviderSelect = document.getElementById("llm-provider");
 
 const metricsBox = document.getElementById("metrics-box");
 
@@ -158,6 +159,7 @@ async function sendMessage() {
     if (!text) return;
 
     const apiKey = localStorage.getItem("openai_api_key");
+    const llmProvider = llmProviderSelect.value;
 
     appendMessage(text, "user");
     input.value = "";
@@ -185,7 +187,7 @@ async function sendMessage() {
             generateHeaders["X-API-Key"] = apiKey;
         }
 
-        const generateRes = await fetch(`${BASE_URL}/generate`, {
+        const generateRes = await fetch(`${BASE_URL}/generate?llm_provider=${encodeURIComponent(llmProvider)}`, {
             method: "POST",
             headers: generateHeaders,
             body: JSON.stringify({ query: text, top_k: 3 }),
