@@ -1,7 +1,7 @@
 import numpy as np
 from app.core.embeddings import embed_chunks
 from app.core.vectorstore import load_faiss_index, load_chunks
-from app.core.generator import call_openai, call_gemini
+from app.core.generator import call_openai, call_gemini, call_ollama
 from app.utils.logging import get_logger
 from dotenv import load_dotenv
 
@@ -57,8 +57,10 @@ def generate_answer(query: str, top_k: int = 5, llm_provider: str = 'openai', ap
             response_text = call_openai(prompt, api_key=api_key)
         elif llm_provider == "gemini":
             response_text = call_gemini(prompt, api_key=api_key)
+        elif llm_provider == "ollama":
+            response_text = call_ollama(prompt)
         else:
-            return {"error": "Unsupported llm_provider. Use openai or gemini."}
+            return {"error": "Unsupported llm_provider. Use openai, gemini, or ollama."}
 
         if not response_text:
             return {"error": "No response from LLM provider."}
