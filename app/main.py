@@ -1,15 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Header
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from app.utils.pdf_text import extract_pdf_text
-from app.core.chunker import chunk_text
-from app.core.embeddings import embed_chunks
-from app.core.vectorstore import (
-    build_faiss_index,
-    save_faiss_index,
-    save_chunks
-)
 from pydantic import BaseModel
 from app.core.search import search, generate_answer
+from app.core.indexing import start_index_job, get_index_job
 from prometheus_client import Counter, Histogram, generate_latest
 from fastapi.responses import PlainTextResponse
 from time import time
@@ -20,8 +14,12 @@ app = FastAPI(title="RAG-Serve")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or restrict later
-    allow_credentials=True,
+    allow_origins=[
+        "https://vishalkoriyalearning.github.io",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -61,40 +59,25 @@ async def ingest(file: UploadFile = File(...)):
         logger.error(f"Error during ingestion: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/index-doc")
-async def index_doc(file: UploadFile = File(...)):
+@app.post("/index-doc", status_code=202)
+async def index_doc(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     logger.info(f"Index-doc endpoint called with file: {file.filename}")
     content = await file.read()
     logger.debug(f"Read {len(content)} bytes from file: {file.filename}")
+    job_id = start_index_job(background_tasks, file.filename, content)
 
-    if file.filename.endswith(".pdf"):
-        logger.debug("Extracting text from PDF file.")
-        text = extract_pdf_text(content)
-    else:
-        logger.debug("Decoding text from non-PDF file.")
-        text = content.decode("utf-8", errors="ignore")
-
-    logger.info("Chunking text.")
-    chunks = chunk_text(text)
-    logger.info(f"Text chunked into {len(chunks)} chunks.")
-
-    logger.info("Embedding chunks.")
-    embeddings = embed_chunks(chunks)
-    logger.info(f"Chunks embedded. Embedding dimension: {embeddings.shape[1] if hasattr(embeddings, 'shape') else 'unknown'}.")
-
-    logger.info("Building FAISS index.")
-    index = build_faiss_index(embeddings)
-
-    logger.info("Saving FAISS index and chunks metadata.")
-    save_faiss_index(index)
-    save_chunks(chunks)
-
-    logger.info("Indexing complete.")
     return {
-        "chunks_indexed": len(chunks),
-        "embedding_dim": embeddings.shape[1],
-        "faiss_saved": True
+        "status": "queued",
+        "job_id": job_id,
+        "message": "Indexing started in background. Check /index-status/{job_id} for progress."
     }
+
+@app.get("/index-status/{job_id}")
+def index_status(job_id: str):
+    job = get_index_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job ID not found.")
+    return job
 
 class QueryRequest(BaseModel):
     query: str
