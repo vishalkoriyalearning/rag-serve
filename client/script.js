@@ -1,6 +1,17 @@
 // BACKEND URL
-// const BASE_URL = "http://127.0.0.1:8000";
-const BASE_URL = "https://rag-serve.onrender.com";
+// Supports overrides:
+// - Query param: ?api=http://127.0.0.1:8000
+// - LocalStorage: rag_serve_base_url
+function resolveBaseUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("api") || params.get("base_url") || params.get("backend");
+    const fromStorage = localStorage.getItem("rag_serve_base_url");
+    const raw = (fromQuery || fromStorage || "https://rag-serve.onrender.com").trim();
+    return raw.replace(/\/+$/, "");
+}
+
+const BASE_URL = resolveBaseUrl();
+localStorage.setItem("rag_serve_base_url", BASE_URL);
 
 // UI Elements
 const chatBox = document.getElementById("chat-box");
@@ -17,6 +28,25 @@ const apiKeyStatus = document.getElementById("api-key-status");
 const llmProviderSelect = document.getElementById("llm-provider");
 
 const metricsBox = document.getElementById("metrics-box");
+
+function isLocalBackend(url) {
+    try {
+        const u = new URL(url);
+        return u.hostname === "localhost" || u.hostname === "127.0.0.1";
+    } catch {
+        return false;
+    }
+}
+
+// Only enable Ollama when the UI points to a local backend.
+(() => {
+    const ollamaOpt = llmProviderSelect?.querySelector('option[value="ollama"]');
+    if (!ollamaOpt) return;
+    if (!isLocalBackend(BASE_URL)) {
+        ollamaOpt.disabled = true;
+        ollamaOpt.textContent = "Ollama (local only)";
+    }
+})();
 
 // Load API key from localStorage
 function loadApiKey() {
@@ -122,20 +152,31 @@ function sleep(ms) {
 
 async function pollIndexStatus(jobId, { intervalMs = 2000, timeoutMs = 10 * 60 * 1000 } = {}) {
     const start = Date.now();
+    let lastErr = null;
     while (true) {
-        const res = await fetch(`${BASE_URL}/index-status/${encodeURIComponent(jobId)}`);
-        if (!res.ok) {
-            throw new Error(`Index status check failed (${res.status})`);
-        }
-
-        const data = await res.json();
-        if (data.status === "completed") return data;
-        if (data.status === "failed") {
-            throw new Error(data.error || "Indexing failed");
+        try {
+            // Render free-tier cold starts and transient restarts can briefly return 502/503/504.
+            const res = await fetch(`${BASE_URL}/index-status/${encodeURIComponent(jobId)}`, { cache: "no-store" });
+            if (res.status === 502 || res.status === 503 || res.status === 504) {
+                lastErr = new Error(`Backend temporarily unavailable (${res.status})`);
+            } else if (!res.ok) {
+                throw new Error(`Index status check failed (${res.status})`);
+            } else {
+                const data = await res.json();
+                if (data.status === "completed") return data;
+                if (data.status === "failed") {
+                    throw new Error(data.error || "Indexing failed");
+                }
+            }
+        } catch (err) {
+            // If CORS is misconfigured or the service is still waking up, browsers report a generic fetch error.
+            lastErr = err;
         }
 
         if (Date.now() - start > timeoutMs) {
-            throw new Error("Indexing timed out while waiting for completion");
+            throw new Error(
+                `Indexing timed out while waiting for completion. Last error: ${lastErr?.message || "Unknown"}`
+            );
         }
         await sleep(intervalMs);
     }

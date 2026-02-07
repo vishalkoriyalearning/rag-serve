@@ -11,12 +11,15 @@ services:
     restart: unless-stopped
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        PLATFORM: LOCAL
     container_name: rag_api
     ports:
       - "8000:8000"
     volumes:
-      - ./storage:/app/storage
+      - ./app/storage:/app/app/storage
     env_file:
       - .env
     depends_on:
