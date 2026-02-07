@@ -1,7 +1,7 @@
 import numpy as np
 from app.core.embeddings import embed_chunks
 from app.core.vectorstore import load_faiss_index, load_chunks
-from app.core.generator import call_openai, call_gemini, call_ollama
+from app.core.generator import call_openai, call_gemini
 from app.utils.logging import get_logger
 from dotenv import load_dotenv
 

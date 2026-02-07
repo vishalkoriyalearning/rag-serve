@@ -18,7 +18,7 @@ def call_openai(prompt: str, api_key: str = None):
     except Exception as e:
         return f"OpenAI error: {str(e)}"
     
-def call_gemini(prompt: str, api_key: str = None):
+def call_gemini(prompt: str, api_key: str = GEMINI_API_KEY):
     # Placeholder for Gemini API call
     try:
         client = genai.Client(api_key=api_key) if api_key else genai.Client()
