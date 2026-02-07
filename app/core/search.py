@@ -57,8 +57,10 @@ def generate_answer(query: str, top_k: int = 5, llm_provider: str = None, api_ke
             response_text = call_openai(prompt, api_key=api_key)
         elif llm_provider == "gemini":
             response_text = call_gemini(prompt, api_key=api_key)
+        elif llm_provider == "ollama":
+            response_text = call_ollama(prompt)
         else:
-            return {"error": "Unsupported llm_provider. Use openai or gemini."}
+            return {"error": "Unsupported llm_provider. Use openai, gemini or ollama."}
 
         if not response_text:
             return {"error": "No response from LLM provider."}

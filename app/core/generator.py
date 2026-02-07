@@ -1,6 +1,8 @@
 import openai
 from google import genai
 from configs.llm import OPENAI_API_KEY, OPENAI_MODEL, GEMINI_API_KEY, GEMINI_MODEL
+import requests
+import json
 
 openai.api_key = OPENAI_API_KEY
 
@@ -29,5 +31,32 @@ def call_gemini(prompt: str, api_key: str = None):
         return(response.text)
     except Exception as e:
         return f"Gemini error: {str(e)}"
+
+
+OLLAMA_HOST = "http://localhost:11434"
+
+def call_ollama(prompt: str, model: str = "llama3.2:1b"):
+    url = f"{OLLAMA_HOST}/api/generate"
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False
+    }
+
+    try:
+        res = requests.post(url, json=payload, stream=True)
+        res.raise_for_status()
+
+        full_response = ""
+        for line in res.iter_lines():
+            if line:
+                data = json.loads(line.decode("utf-8"))
+                full_response += data.get("response", "")
+
+        return full_response
+
+    except Exception as e:
+        return f"Ollama error: {str(e)}"
 
 
