@@ -36,7 +36,7 @@ def search(query: str, top_k: int = 5):
 
     return {"results": results}
 
-def generate_answer(query: str, top_k: int = 5, llm_provider: str = None, api_key: str = None):
+def generate_answer(query: str, top_k: int = 5, llm_provider: str = 'openai', api_key: str = None):
     # 1) Retrieve
     emb = embed_chunks([query])
     index = load_faiss_index()
