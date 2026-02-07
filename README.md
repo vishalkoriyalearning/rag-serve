@@ -1,67 +1,100 @@
 ![CI](https://github.com/vishalkoriyalearning/rag-serve/actions/workflows/ci.yml/badge.svg)
-# 🚀 RAG-Serve — Retrieval Augmented Generation API
+# RAG-Serve - Retrieval Augmented Generation API
 
-**RAG-Serve** is a production-ready, containerized **RAG (Retrieval-Augmented Generation)** system built with **FastAPI**, **FAISS**, **Sentence-Transformers**, and **LLMs (OpenAI + Ollama fallback)**.
+RAG-Serve is a production-oriented, containerized RAG (Retrieval-Augmented Generation) system that demonstrates end-to-end AI application engineering. It ingests documents, builds a FAISS index, retrieves relevant context, and generates grounded answers using configurable LLM providers.
 
-It ingests documents → chunks them → builds embeddings → stores a FAISS vector index → retrieves relevant context → and generates answers using LLMs.
+This repository is a showcase of:
 
-This project demonstrates:
-
-* Backend/API engineering
-* RAG pipeline architecture
-* Hybrid LLM usage (Cloud + Local)
-* FAISS vector search
-* Docker & CI/CD
-* Test-driven workflow
+* Backend and API engineering with FastAPI
+* RAG pipeline design and retrieval evaluation basics
+* Vector search with FAISS
+* Multi-provider LLM integration (OpenAI, Gemini)
+* CI/CD and Docker-based workflows
+* Practical, testable system design
 
 ---
 
-## 📦 Features
+## Live Deployment
 
-* **Document Ingestion** (`/ingest`, `/index-doc`)
-* **Text Extraction** from PDF & TXT
-* **Chunking** with overlap
-* **Embeddings** using `sentence-transformers`
-* **FAISS Vector Store** for fast retrieval
-* **Query API** for semantic search
-* **Generate API** using:
-
-  * **OpenAI (Primary)**
-  * **Ollama Llama3.2:1b (Fallback)**
-* **Dockerized Deployment** (API + Ollama)
-* **GitHub Actions CI**
-
-  * Linting (Ruff)
-  * Unit tests (PyTest)
-  * Docker build
-* **Simple, clean architecture**
+* Backend API deployed on Render
+* Frontend UI hosted on GitHub Pages https://vishalkoriyalearning.github.io/rag-serve/
 
 ---
 
-## 🧱 Tech Stack
+## Features
 
-* **FastAPI** — API framework
-* **FAISS** — vector similarity search
-* **Sentence-Transformers** — embedding generation
-* **OpenAI GPT models** — generation (optional)
-* **Ollama Llama3.2:1b** — local generation fallback
-* **Docker + Docker Compose**
-* **GitHub Actions (CI)**
-* **PyTest + Ruff**
+* Document ingestion (`/ingest`, `/index-doc`)
+* PDF and TXT extraction
+* Chunking with overlap for retrieval quality
+* Embeddings using `sentence-transformers`
+* FAISS vector store for fast similarity search
+* Async/background indexing jobs with status polling (`/index-status/{job_id}`) to avoid request timeouts in production hosts
+* Semantic search API (`/query`)
+* Answer generation API (`/generate`) with provider routing
+* Minimal UI for document upload and chat-style Q&A
+* GitHub Actions CI (lint, tests, Docker build)
 
 ---
 
-## 📂 Project Structure
+## Architecture Overview
+
+1. Ingest a document and extract text
+2. Chunk and embed text
+3. Build and persist FAISS index and chunks (runs as a background job; poll for completion)
+4. For a query, retrieve top-k relevant chunks
+5. Build a context-aware prompt
+6. Generate an answer with the selected LLM provider
+
+---
+
+## Sequence Diagram (Mermaid)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Web UI (GitHub Pages)
+    participant API as FastAPI (Render)
+    participant Emb as Embeddings
+    participant VS as FAISS Index
+    participant LLM as LLM Provider
+
+    User->>UI: Upload document / Ask question
+    UI->>API: POST /index-doc (returns job_id)
+    UI->>API: GET /index-status/{job_id} (poll)
+    UI->>API: POST /generate?llm_provider=...
+    API->>Emb: Embed chunks or query
+    API->>VS: Store or search vectors
+    VS-->>API: Top-k chunks
+    API->>LLM: Generate answer with context
+    LLM-->>API: Answer text
+    API-->>UI: Response
+```
+
+---
+
+## Tech Stack
+
+* FastAPI
+* FAISS
+* Sentence-Transformers
+* OpenAI and Gemini LLMs
+* Docker and Docker Compose
+* GitHub Actions CI
+* PyTest and Ruff
+
+---
+
+## Project Structure
 
 ```
 rag-serve/
 ├─ app/
-│  ├─ api/
 │  ├─ core/         # chunker, embeddings, vectorstore, generator
 │  ├─ utils/        # pdf text extraction
-│  └─ main.py       # FastAPI root
+│  └─ main.py       # FastAPI entrypoint
+├─ client/          # static UI
 ├─ configs/         # model configs
-├─ storage/         # FAISS + metadata
+├─ storage/         # FAISS index and metadata
 ├─ tests/           # pytest unit tests
 ├─ docker-compose.yml
 ├─ Dockerfile
@@ -70,113 +103,124 @@ rag-serve/
 
 ---
 
-## 🚀 Getting Started (Local)
+## Getting Started (Local)
 
-### 1. Create virtual environment
+1. Create virtual environment
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-### 2. Install dependencies
+2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Run FastAPI
+3. Configure environment
+
+```bash
+copy .env.example .env   # Windows
+# cp .env.example .env   # macOS/Linux
+```
+
+4. Run FastAPI
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Visit → [http://localhost:8000/docs](http://localhost:8000/docs)
+Visit http://localhost:8000/docs
 
 ---
 
-## 🐳 Run with Docker (Recommended)
+## Configuration
 
-### 1. Build + start services (API + Ollama)
+Set your API keys in `.env` or provide them at runtime:
+
+* `OPENAI_API_KEY`, `OPENAI_MODEL`
+* `GEMINI_API_KEY`, `GEMINI_MODEL`
+* `EMBEDDING_MODEL`, `TOP_K`
+
+The UI sends the provider as `llm_provider` with values:
+
+* `openai`
+* `gemini`
+
+---
+
+## API Endpoints
+
+* `GET /health` - health check
+* `GET /metrics` - Prometheus metrics
+* `POST /ingest` - upload a document
+* `POST /index-doc` - start building the FAISS index (async; returns `202` + `job_id`)
+* `GET /index-status/{job_id}` - check indexing job status
+* `POST /query` - semantic search
+* `POST /generate` - RAG + LLM answer
+
+Example request:
 
 ```bash
-docker-compose up --build
+curl -X POST "http://localhost:8000/generate?llm_provider=openai" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your_key>" \
+  -d "{\"query\":\"What is this document about?\",\"top_k\":3}"
 ```
 
-### 2. Pull Ollama model (inside container)
+Indexing example (async):
 
 ```bash
-docker exec -it ollama ollama pull llama3.2:1b
+# Start indexing (returns 202 with job_id)
+curl -X POST "http://localhost:8000/index-doc" \
+  -H "accept: application/json" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@your.pdf;type=application/pdf"
+
+# Poll job status
+curl "http://localhost:8000/index-status/<job_id>"
 ```
 
 ---
 
-## 🧪 Testing
+## Frontend UI
 
-Run all unit tests:
+The UI is a static client in `client/`:
+
+* Select LLM provider (OpenAI or Gemini)
+* Enter API key (stored locally in the browser)
+* Upload documents and ask questions
+
+The UI points to the deployed backend by default and can be adjusted in `client/script.js`.
+
+Note: Render free tier instances can spin down on inactivity; the first request after inactivity may take ~50 seconds to respond.
+
+---
+
+## Testing
 
 ```bash
 pytest -q
-```
-
-Lint the code:
-
-```bash
 ruff check .
 ```
 
 ---
 
-## 🔌 API Endpoints
+## CI/CD
 
-### ✔ Health Check
+GitHub Actions runs:
 
-`GET /health`
-
-### ✔ Ingest Document
-
-`POST /ingest`
-
-### ✔ Build Index
-
-`POST /index-doc`
-
-### ✔ Semantic Search
-
-`POST /query`
-
-### ✔ RAG + LLM Answer
-
-`POST /generate`
-Uses **OpenAI → fallback to Ollama**
+* Ruff linting
+* PyTest unit tests
+* Docker build checks
 
 ---
 
-## 🔄 CI/CD (GitHub Actions)
+## Roadmap Ideas
 
-* Automatic linting
-* Automatic tests
-* Automatic Docker build
-* Status badge included in this repo
-
----
-
-## 📘 Notes
-
-This project is built as a **learning-by-doing** portfolio system to demonstrate knowledge of:
-
-* AI engineering
-* Modern backend design
-* Vector search
-* LLM integrations
-* Dockerized microservices
-* CI/CD automation
-
-It is structured to be easily extended with:
-
-* Reranking
-* Chat memory
-* UI client
-* API authentication
-* MLflow experiment tracking
-
+* Reranking or hybrid retrieval
+* Multi-document chat memory
+* API auth and rate limiting
+* Usage analytics dashboard
+* Experiment tracking
